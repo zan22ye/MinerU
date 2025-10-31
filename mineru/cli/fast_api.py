@@ -15,6 +15,7 @@ from starlette.background import BackgroundTask
 from typing import List, Optional
 from loguru import logger
 from base64 import b64encode
+from mineru.cli.office2pdf import convert_file_to_pdf
 
 from mineru.cli.common import aio_do_parse, read_fn, pdf_suffixes, image_suffixes
 from mineru.utils.cli_parser import arg_parse
@@ -59,13 +60,28 @@ def get_infer_result(file_suffix_identifier: str, pdf_name: str, parse_dir: str)
             return fp.read()
     return None
 
+def enableFileKind(files: List[UploadFile]) -> List[UploadFile]:
+    allowed_extensions = {"xlsx", "docx", "pptx"}
+    filtered = []  # 筛选出的目标文件
+    
+    for file in files:
+        filename = file.filename.lower()
+        if "." in filename and filename.split(".")[-1] in allowed_extensions:
+            #filtered.append(file)
+            convert_file_to_pdf(filename,os.path.dirname(file))
+            new_filename = ".".join(file.split(".")[:-1]) + ".pdf"
+            filtered.append(new_filename)
+        else:
+            filtered.append(file)
+    
+    return filtered  # 前者是目标文件，后者是删除目标后的列表
 
 @app.post(path="/file_parse",)
 async def parse_pdf(
         files: List[UploadFile] = File(...),
         output_dir: str = Form("./output"),
         lang_list: List[str] = Form(["ch"]),
-        backend: str = Form("pipeline"),
+        backend: str = Form("vlm-transformer"),
         parse_method: str = Form("auto"),
         formula_enable: bool = Form(True),
         table_enable: bool = Form(True),
@@ -87,11 +103,11 @@ async def parse_pdf(
         # 创建唯一的输出目录
         unique_dir = os.path.join(output_dir, str(uuid.uuid4()))
         os.makedirs(unique_dir, exist_ok=True)
-
+        allowed_extensions = {"xlsx", "docx", "pptx","ppt"}
         # 处理上传的PDF文件
         pdf_file_names = []
         pdf_bytes_list = []
-
+        #files=enableFileKind(files)
         for file in files:
             content = await file.read()
             file_path = Path(file.filename)
@@ -100,8 +116,17 @@ async def parse_pdf(
             temp_path = Path(unique_dir) / file_path.name
             with open(temp_path, "wb") as f:
                 f.write(content)
-
             # 如果是图像文件或PDF，使用read_fn处理
+            filename = file.filename.lower()
+            if "." in filename and filename.split(".")[-1] in allowed_extensions:
+                #filtered.append(file)
+                convert_file_to_pdf(temp_path,unique_dir)
+                new_filename = ".".join(file.filename.split(".")[:-1]) + ".pdf"
+                print(new_filename)
+                temp_path=Path(unique_dir)/Path(new_filename)
+            print(temp_path)
+            if not os.path.exists(temp_path):
+                print(f"文件路径 {temp_path} 不存在")
             file_suffix = guess_suffix_by_path(temp_path)
             if file_suffix in pdf_suffixes + image_suffixes:
                 try:
@@ -177,7 +202,10 @@ async def parse_pdf(
                             zf.write(path, arcname=os.path.join(safe_pdf_name, f"{safe_pdf_name}_middle.json"))
 
                     if return_model_output:
-                        path = os.path.join(parse_dir, f"{pdf_name}_model.json")
+                        if backend.startswith("pipeline"):
+                            path = os.path.join(parse_dir, f"{pdf_name}_model.json")
+                        else:
+                            path = os.path.join(parse_dir, f"{pdf_name}_model_output.txt")
                         if os.path.exists(path): 
                             zf.write(path, arcname=os.path.join(safe_pdf_name, os.path.basename(path)))
 
@@ -217,7 +245,10 @@ async def parse_pdf(
                     if return_middle_json:
                         data["middle_json"] = get_infer_result("_middle.json", pdf_name, parse_dir)
                     if return_model_output:
-                        data["model_output"] = get_infer_result("_model.json", pdf_name, parse_dir)
+                        if backend.startswith("pipeline"):
+                            data["model_output"] = get_infer_result("_model.json", pdf_name, parse_dir)
+                        else:
+                            data["model_output"] = get_infer_result("_model_output.txt", pdf_name, parse_dir)
                     if return_content_list:
                         data["content_list"] = get_infer_result("_content_list.json", pdf_name, parse_dir)
                     if return_images:
