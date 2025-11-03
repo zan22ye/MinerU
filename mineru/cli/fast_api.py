@@ -103,7 +103,7 @@ async def parse_pdf(
         # 创建唯一的输出目录
         unique_dir = os.path.join(output_dir, str(uuid.uuid4()))
         os.makedirs(unique_dir, exist_ok=True)
-        allowed_extensions = {"xlsx", "docx", "pptx","ppt"}
+        allowed_extensions = {"xlsx", "docx", "pptx","ppt","doc"}
         # 处理上传的PDF文件
         pdf_file_names = []
         pdf_bytes_list = []
