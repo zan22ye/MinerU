@@ -29,8 +29,8 @@ RUN apt-get update && \
 RUN apt-get update && \
     apt-get install -y git && \
     rm -rf /var/lib/apt/lists/* && \
-    git clone  https://github.com/zan22ye/MinerU.git /tmp/mineru && \
-    cd /tmp/mineru && \
+    git clone -b llm-aided-liberoffice https://github.com/zan22ye/MinerU.git /tmp/mineru && \
+    cd /tmp/mineru/MinerU && \
     python3 -m pip install .[core] --break-system-packages && \
     python3 -m pip cache purge && \
     rm -rf /tmp/mineru
